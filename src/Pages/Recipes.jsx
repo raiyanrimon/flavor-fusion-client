@@ -1,83 +1,81 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useEffect } from "react";
 import RecipeCard from "../Components/RecipeCard";
 import useAxiosOpen from "../hooks/useAxiosOpen";
-import { useInfiniteQuery } from "@tanstack/react-query";
+import InfiniteScroll from "react-infinite-scroll-component";
 
 const Recipes = () => {
+  const [recipes, setRecipes] = useState([]);
   const [category, setCategory] = useState("");
   const [country, setCountry] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [hasMore, setHasMore] = useState(true);
+  const [page, setPage] = useState(1);
   const axiosOpen = useAxiosOpen();
-  const observerElem = useRef();
 
-  const fetchRecipes = async ({ pageParam = 0 }) => {
-    let url = `/recipes?page=${pageParam}`;
-    const queryParams = [];
+  useEffect(() => {
+    // Function to fetch recipes based on selected filters and search query
+    const fetchRecipes = async () => {
+      let url = `/recipes?page=${page}`;
+      const queryParams = [];
 
-    if (category) {
-      queryParams.push(`category=${category}`);
-    }
+      if (category) {
+        queryParams.push(`category=${category}`);
+      }
 
-    if (country) {
-      queryParams.push(`country=${country}`);
-    }
+      if (country) {
+        queryParams.push(`country=${country}`);
+      }
 
-    if (searchQuery) {
-      queryParams.push(`search=${searchQuery}`);
-    }
+      if (searchQuery) {
+        queryParams.push(`search=${searchQuery}`);
+      }
 
-    if (queryParams.length > 0) {
-      url += `&${queryParams.join("&")}`;
-    }
+      if (queryParams.length > 0) {
+        url += `&${queryParams.join("&")}`;
+      }
 
-    const response = await axiosOpen.get(url);
-    return response.data;
-  };
+      try {
+        const response = await axiosOpen.get(url);
+        setLoading(false);
+        setRecipes((prevRecipes) => [...prevRecipes, ...response.data.data]);
+        setHasMore(response.data.data.length > 0);
+      } catch (error) {
+        console.error("Failed to fetch recipes:", error);
+      }
+    };
 
-  const {
-    data,
-    error,
-    fetchNextPage,
-    hasNextPage,
-    isFetching,
-    isFetchingNextPage,
-    status,
-  } = useInfiniteQuery({
-    queryKey: ["recipes", category, country, searchQuery],
-    queryFn: fetchRecipes,
-    getNextPageParam: (lastPage) => lastPage.nextPage ?? false,
-  });
+    // Call fetchRecipes function when category, country, searchQuery, or page changes
+    fetchRecipes();
+  }, [axiosOpen, category, country, searchQuery, page]);
 
   const handleCategoryChange = (e) => {
     setCategory(e.target.value);
+    setRecipes([]);
+    setPage(1);
   };
 
   const handleCountryChange = (e) => {
     setCountry(e.target.value);
+    setRecipes([]);
+    setPage(1);
   };
 
   const handleSearchChange = (e) => {
     setSearchQuery(e.target.value);
+    setRecipes([]);
+    setPage(1);
   };
 
-  const lastRecipeElementRef = useCallback(
-    (node) => {
-      if (isFetchingNextPage) return;
-      if (observerElem.current) observerElem.current.disconnect();
-      observerElem.current = new IntersectionObserver((entries) => {
-        if (entries[0].isIntersecting && hasNextPage) {
-          fetchNextPage();
-        }
-      });
-      if (node) observerElem.current.observe(node);
-    },
-    [isFetchingNextPage, fetchNextPage, hasNextPage]
-  );
+  const fetchMoreData = () => {
+    setPage((prevPage) => prevPage + 1);
+  };
 
   return (
     <div className="container mx-auto px-4 py-8">
       <h1 className="text-3xl font-bold mb-6 text-center">All Recipes</h1>
       <div className="flex flex-col md:flex-row justify-center items-center mb-6">
+        {/* Filter by category */}
         <div className="mb-4 md:mb-0 md:mr-4">
           <select
             value={category}
@@ -94,6 +92,7 @@ const Recipes = () => {
             <option value="vegetable">Vegetables</option>
           </select>
         </div>
+        {/* Filter by country */}
         <div className="mb-4 md:mb-0 md:mr-4">
           <input
             type="text"
@@ -103,6 +102,7 @@ const Recipes = () => {
             className="px-4 py-2 rounded-lg border-2 border-gray-300 focus:outline-none focus:border-indigo-500"
           />
         </div>
+        {/* Search input */}
         <div className="mb-4 md:mb-0">
           <input
             type="text"
@@ -113,26 +113,25 @@ const Recipes = () => {
           />
         </div>
       </div>
-      <div className="grid grid-cols-1 gap-8">
-        {status === "loading" && <p>Loading...</p>}
-        {status === "error" && <p>Error: {error.message}</p>}
-        {data?.pages.map((page, pageIndex) => (
-          <div key={pageIndex}>
-            {page.data.map((recipe, recipeIndex) => (
-              <RecipeCard
-                key={recipe._id}
-                recipe={recipe}
-                ref={
-                  page.data.length === recipeIndex + 1
-                    ? lastRecipeElementRef
-                    : null
-                }
-              />
-            ))}
-          </div>
-        ))}
-      </div>
-      {isFetching && !isFetchingNextPage && <p>Fetching...</p>}
+      <InfiniteScroll
+        dataLength={recipes.length}
+        next={fetchMoreData}
+        hasMore={hasMore}
+        loader={
+          <span className="loading loading-spinner loading-lg">Loading...</span>
+        }
+        endMessage={
+          <p style={{ textAlign: "center" }}>
+            <b>Yay! You have seen all the recipes</b>
+          </p>
+        }
+      >
+        <div className="grid grid-cols-1 gap-8">
+          {recipes.map((recipe) => (
+            <RecipeCard key={recipe._id} recipe={recipe} />
+          ))}
+        </div>
+      </InfiniteScroll>
     </div>
   );
 };
