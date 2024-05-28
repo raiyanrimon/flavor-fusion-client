@@ -1,7 +1,7 @@
 import logo from "../assets/logo.webp";
 const Footer = () => {
   return (
-    <footer className="footer p-10 bg-gray-900 text-white">
+    <footer className="footer p-10 bg-gradient-to-b from-gray-700 to-purple-700  text-white">
       <div className="container mx-auto flex flex-col lg:flex-row justify-between items-center">
         {/* Logo and Tagline */}
         <div className="flex items-center mb-6 lg:mb-0">
